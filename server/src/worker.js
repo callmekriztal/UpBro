@@ -1,20 +1,17 @@
 require('dotenv').config();
 const { Worker } = require('bullmq');
 const mongoose = require('mongoose');
-const connectDB = require('./src/config/db');
-const redisOptions = require('./src/config/redis');
-const { processJob } = require('./src/services/workerService');
+const connectDB = require('./config/db');
+const redisOptions = require('./config/redis');
+const { processJob } = require('./services/workerService');
 
-// Concurrency Setting: Controls max parallel HTTP check jobs processed by this worker node
 const WORKER_CONCURRENCY = Number(process.env.WORKER_CONCURRENCY) || 10;
 
 console.log('[Worker Process] Booting standalone background worker node...');
 
-// Connect to MongoDB
 connectDB().then(() => {
   console.log(`[Worker Process] Initializing BullMQ worker (Concurrency: ${WORKER_CONCURRENCY})...`);
 
-  // Instantiate BullMQ Worker Consumer
   const worker = new Worker(
     'ping-checks-queue',
     async (job) => {
@@ -26,7 +23,6 @@ connectDB().then(() => {
     }
   );
 
-  // Worker Lifecycle Event Handlers
   worker.on('completed', (job, result) => {
     if (result && result.skipped) return;
     console.log(`[Worker Event] Job "${job.id}" completed. Latency: ${result?.responseTime}ms, Status: ${result?.statusCode}`);
@@ -40,16 +36,13 @@ connectDB().then(() => {
     console.error('[Worker Connection Error]:', err);
   });
 
-  // Graceful Shutdown Logic (SIGTERM / SIGINT)
   const gracefulShutdown = async (signal) => {
     console.log(`\n[Worker Shutdown] Received ${signal}. Initiating graceful shutdown...`);
 
     try {
-      // 1. Stop accepting new jobs and wait for active in-flight jobs to complete
       await worker.close();
       console.log('[Worker Shutdown] BullMQ worker closed cleanly.');
 
-      // 2. Close MongoDB Database connection
       await mongoose.connection.close();
       console.log('[Worker Shutdown] MongoDB connection closed.');
 
