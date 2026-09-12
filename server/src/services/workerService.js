@@ -3,14 +3,23 @@ const Check = require('../models/Check');
 const Monitor = require('../models/Monitor');
 const Incident = require('../models/Incident');
 
-// Consecutive failure threshold before declaring an incident (prevents alert flapping)
 const FAILURE_THRESHOLD = 2;
 
 /**
- * Execute HTTP Ping check for a single monitor
- * @param {Object} monitor - Mongoose Monitor document
+ * Process a single BullMQ ping check job
+ * @param {Object} job - BullMQ Job instance
  */
-const executeMonitorCheck = async (monitor) => {
+const processJob = async (job) => {
+  const { monitorId, url, timeout, expectedStatus, name } = job.data;
+  console.log(`[Worker Processing] Job "${job.id}" for monitor "${name}" (Attempt ${job.attemptsMade + 1}/${job.opts.attempts || 3})`);
+
+  // Fetch monitor from MongoDB to ensure it still exists and isActive
+  const monitor = await Monitor.findById(monitorId);
+  if (!monitor || !monitor.isActive) {
+    console.log(`[Worker] Monitor ${monitorId} is inactive or deleted. Skipping check.`);
+    return { skipped: true };
+  }
+
   const startTime = Date.now();
   let statusCode = null;
   let responseTime = 0;
@@ -18,40 +27,51 @@ const executeMonitorCheck = async (monitor) => {
   let errorMessage = null;
 
   try {
-    const response = await axios.get(monitor.url, {
-      timeout: monitor.timeout,
-      validateStatus: () => true, // Don't throw exception on 4xx/5xx status codes so we can read the exact code
+    const response = await axios.get(url, {
+      timeout: timeout || 5000,
+      validateStatus: () => true,
       headers: {
-        'User-Agent': 'UptimeMonitor-Engine/1.0'
+        'User-Agent': 'UptimeMonitor-WorkerEngine/2.0'
       }
     });
 
     responseTime = Date.now() - startTime;
     statusCode = response.status;
 
-    // Check success condition: status code matches expected status
-    if (statusCode === (monitor.expectedStatus || 200)) {
+    // Check if target response payload requested a simulated TRANSIENT WORKER GLITCH (for testing Stage 3 retries!)
+    if (response.data && response.data.simulatedGlitch === 'TRANSIENT_WORKER_GLITCH') {
+      console.warn(`[Worker Retry Test] Simulated transient infrastructure error on attempt ${job.attemptsMade + 1}`);
+      throw new Error('Simulated transient worker infrastructure error — triggering BullMQ retry!');
+    }
+
+    if (statusCode === (expectedStatus || 200)) {
       success = true;
     } else {
       success = false;
-      errorMessage = `Unexpected HTTP status: ${statusCode} (expected ${monitor.expectedStatus || 200})`;
+      errorMessage = `Unexpected HTTP status: ${statusCode} (expected ${expectedStatus || 200})`;
     }
   } catch (error) {
     responseTime = Date.now() - startTime;
 
+    // Distinguish retryable worker infrastructure errors vs. target endpoint errors
+    if (error.message && error.message.includes('Simulated transient worker infrastructure error')) {
+      // Re-throw so BullMQ catches it and schedules exponential backoff retry!
+      throw error;
+    }
+
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-      errorMessage = `Request timed out after ${monitor.timeout}ms`;
+      errorMessage = `Request timed out after ${timeout}ms`;
     } else if (error.code === 'ECONNREFUSED') {
-      errorMessage = `Connection refused by host (${monitor.url})`;
+      errorMessage = `Connection refused by host (${url})`;
     } else if (error.code === 'ENOTFOUND') {
-      errorMessage = `DNS lookup failed for hostname (${monitor.url})`;
+      errorMessage = `DNS lookup failed for hostname (${url})`;
     } else {
       errorMessage = error.message || 'Network error occurred';
     }
     success = false;
   }
 
-  // 1. Create Check Document
+  // 1. Record Check Document
   const check = await Check.create({
     monitorId: monitor._id,
     statusCode,
@@ -61,15 +81,13 @@ const executeMonitorCheck = async (monitor) => {
     checkedAt: new Date()
   });
 
-  // 2. Incident Detection & Resolution Logic
+  // 2. Incident Management & Flapping Resolution
   const now = new Date();
 
   if (success) {
-    // Reset consecutive failure counter
     monitor.consecutiveFailures = 0;
     monitor.currentStatus = 'up';
 
-    // Check if there is an active ongoing incident to resolve
     const ongoingIncident = await Incident.findOne({
       monitorId: monitor._id,
       status: 'ongoing'
@@ -84,11 +102,9 @@ const executeMonitorCheck = async (monitor) => {
       console.log(`[Incident Manager] Resolved incident for monitor "${monitor.name}" after ${durationSeconds}s`);
     }
   } else {
-    // Increment consecutive failure counter
     monitor.consecutiveFailures = (monitor.consecutiveFailures || 0) + 1;
     monitor.currentStatus = 'down';
 
-    // Check if failure threshold reached and no ongoing incident exists
     if (monitor.consecutiveFailures >= FAILURE_THRESHOLD) {
       const ongoingIncident = await Incident.findOne({
         monitorId: monitor._id,
@@ -107,14 +123,18 @@ const executeMonitorCheck = async (monitor) => {
     }
   }
 
-  // Update Monitor timestamps & current status
   monitor.lastCheckedAt = now;
   await monitor.save();
 
-  return check;
+  return {
+    checkId: check._id,
+    success,
+    responseTime,
+    statusCode
+  };
 };
 
 module.exports = {
-  executeMonitorCheck,
+  processJob,
   FAILURE_THRESHOLD
 };
