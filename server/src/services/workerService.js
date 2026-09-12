@@ -2,6 +2,7 @@ const axios = require('axios');
 const Check = require('../models/Check');
 const Monitor = require('../models/Monitor');
 const Incident = require('../models/Incident');
+const notificationService = require('./notificationService');
 
 const FAILURE_THRESHOLD = 2;
 
@@ -13,7 +14,6 @@ const processJob = async (job) => {
   const { monitorId, url, timeout, expectedStatus, name } = job.data;
   console.log(`[Worker Processing] Job "${job.id}" for monitor "${name}" (Attempt ${job.attemptsMade + 1}/${job.opts.attempts || 3})`);
 
-  // Fetch monitor from MongoDB to ensure it still exists and isActive
   const monitor = await Monitor.findById(monitorId);
   if (!monitor || !monitor.isActive) {
     console.log(`[Worker] Monitor ${monitorId} is inactive or deleted. Skipping check.`);
@@ -38,7 +38,6 @@ const processJob = async (job) => {
     responseTime = Date.now() - startTime;
     statusCode = response.status;
 
-    // Check if target response payload requested a simulated TRANSIENT WORKER GLITCH (for testing Stage 3 retries!)
     if (response.data && response.data.simulatedGlitch === 'TRANSIENT_WORKER_GLITCH') {
       console.warn(`[Worker Retry Test] Simulated transient infrastructure error on attempt ${job.attemptsMade + 1}`);
       throw new Error('Simulated transient worker infrastructure error — triggering BullMQ retry!');
@@ -53,9 +52,7 @@ const processJob = async (job) => {
   } catch (error) {
     responseTime = Date.now() - startTime;
 
-    // Distinguish retryable worker infrastructure errors vs. target endpoint errors
     if (error.message && error.message.includes('Simulated transient worker infrastructure error')) {
-      // Re-throw so BullMQ catches it and schedules exponential backoff retry!
       throw error;
     }
 
@@ -81,7 +78,7 @@ const processJob = async (job) => {
     checkedAt: new Date()
   });
 
-  // 2. Incident Management & Flapping Resolution
+  // 2. Incident Management & Notification Dispatch
   const now = new Date();
 
   if (success) {
@@ -99,7 +96,11 @@ const processJob = async (job) => {
       ongoingIncident.resolvedAt = now;
       ongoingIncident.durationSeconds = durationSeconds;
       await ongoingIncident.save();
+      
       console.log(`[Incident Manager] Resolved incident for monitor "${monitor.name}" after ${durationSeconds}s`);
+
+      // Dispatch decoupled recovery notification
+      await notificationService.sendIncidentRecovery(ongoingIncident, monitor);
     }
   } else {
     monitor.consecutiveFailures = (monitor.consecutiveFailures || 0) + 1;
@@ -112,13 +113,17 @@ const processJob = async (job) => {
       });
 
       if (!ongoingIncident) {
-        await Incident.create({
+        const newIncident = await Incident.create({
           monitorId: monitor._id,
           startedAt: now,
           reason: errorMessage || 'Monitor check failed',
           status: 'ongoing'
         });
+        
         console.log(`[Incident Manager] Created new ongoing incident for monitor "${monitor.name}" (Reason: ${errorMessage})`);
+
+        // Dispatch decoupled alert notification
+        await notificationService.sendIncidentAlert(newIncident, monitor);
       }
     }
   }
