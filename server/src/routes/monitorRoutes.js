@@ -14,13 +14,14 @@ const {
 const { getChecks, createCheck } = require('../controllers/checkController');
 const { getIncidents } = require('../controllers/incidentController');
 const { validateMonitorInput } = require('../validators/monitorValidator');
+const { monitorCreateLimiter } = require('../middleware/rateLimiter');
 
 // Protect all monitor routes with JWT auth middleware
 router.use(authMiddleware);
 
 // Monitor CRUD routes
 router.get('/', getMonitors);
-router.post('/', validateMonitorInput, createMonitor);
+router.post('/', monitorCreateLimiter, validateMonitorInput, createMonitor);
 router.get('/:id', getMonitorById);
 router.patch('/:id', validateMonitorInput, updateMonitor);
 router.delete('/:id', deleteMonitor);
