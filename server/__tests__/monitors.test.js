@@ -1,5 +1,6 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
+const connectDB = require('../src/config/db');
 const app = require('../server');
 const User = require('../src/models/User');
 const Monitor = require('../src/models/Monitor');
@@ -11,6 +12,7 @@ describe('Monitor API & Multi-Tenant Security Tests', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    await connectDB();
     await User.deleteMany({ email: { $in: ['usera@example.com', 'userb@example.com'] } });
 
     // Register User A

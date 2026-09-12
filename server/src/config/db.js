@@ -1,12 +1,22 @@
 const mongoose = require('mongoose');
 
+/**
+ * Mongoose Database Connection Setup
+ */
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/uptime_monitor');
-    console.log(`[MongoDB] Connected: ${conn.connection.host}`);
+    // Disable buffering commands so queries fail fast if DB connection is dropped instead of hanging 10s
+    mongoose.set('bufferCommands', false);
+
+    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/uptime_monitor', {
+      serverSelectionTimeoutMS: 5000 // Fast 5s connection timeout instead of default 30s
+    });
+
+    console.log(`[MongoDB] Connected successfully to host: ${conn.connection.host}`);
+    return conn;
   } catch (error) {
-    console.error(`[MongoDB Error] Connection failed: ${error.message}`);
-    process.exit(1);
+    console.error(`[MongoDB Connection Error]: ${error.message}`);
+    throw error;
   }
 };
 

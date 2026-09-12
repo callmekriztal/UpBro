@@ -1,13 +1,13 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
+const connectDB = require('../src/config/db');
 const app = require('../server');
 const User = require('../src/models/User');
 
 describe('Auth API Integration Tests', () => {
   beforeAll(async () => {
-    // Set test env
     process.env.NODE_ENV = 'test';
-    // Clear user test database
+    await connectDB();
     await User.deleteMany({ email: 'jesttest@example.com' });
   });
 

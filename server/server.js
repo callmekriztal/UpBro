@@ -13,15 +13,10 @@ const { getHealth, getMetrics } = require('./src/controllers/healthController');
 
 const app = express();
 
-// Connect to MongoDB Database & boot background job producer scheduler
-connectDB().then(() => {
-  startScheduler(15000);
-});
-
 // Global Middleware pipeline
 app.use(cors());
 app.use(express.json());
-app.use(requestIdMiddleware); // Attach X-Request-ID tracking header
+app.use(requestIdMiddleware);
 
 // Liveness & Cluster Observability Endpoints
 app.get('/health', getHealth);
@@ -37,10 +32,26 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
+/**
+ * Async Server Boot Engine
+ * Guarantees MongoDB connection is active BEFORE starting HTTP listener or job scheduler
+ */
+const startServer = async () => {
+  try {
+    await connectDB();
+    startScheduler(15000);
+
+    app.listen(PORT, () => {
+      console.log(`[Server] Running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('[Server Boot Error] Could not start server:', err.message);
+    process.exit(1);
+  }
+};
+
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`[Server] Running on port ${PORT}`);
-  });
+  startServer();
 }
 
 module.exports = app;
