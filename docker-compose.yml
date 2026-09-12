@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: uptime_mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: uptime_redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: uptime_api
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongodb:27017/uptime_monitor
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JWT_SECRET=super_secret_jwt_key_change_in_production
+    depends_on:
+      - mongodb
+      - redis
+    restart: always
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: uptime_worker
+    command: ["npm", "run", "start:worker"]
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/uptime_monitor
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WORKER_CONCURRENCY=10
+      - JWT_SECRET=super_secret_jwt_key_change_in_production
+    depends_on:
+      - mongodb
+      - redis
+    restart: always
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: uptime_client
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: always
+
+volumes:
+  mongo_data:
