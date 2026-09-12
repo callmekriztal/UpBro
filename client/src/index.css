@@ -1,7 +1,52 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --bg-base: #0E1116;
+    --bg-surface: #161B22;
+    --bg-surface-hover: #1C222B;
+    --border-hairline: #262C36;
+    --text-primary: #E6E8EB;
+    --text-muted: #8B94A3;
+    --brand-amber: #E8A33D;
+    --brand-amber-hover: #D9942E;
+    --status-up: #3FB950;
+    --status-down: #F85149;
+    --status-paused: #8B94A3;
+  }
+
   body {
-    @apply bg-slate-900 text-slate-100 font-sans antialiased;
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .font-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+/* Status Dot Pulse Animation */
+@keyframes status-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
+
+.animate-status-down {
+  animation: status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-status-down {
+    animation: none;
   }
 }

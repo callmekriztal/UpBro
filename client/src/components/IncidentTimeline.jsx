@@ -3,8 +3,8 @@ import React from 'react';
 const IncidentTimeline = ({ incidents = [] }) => {
   if (!incidents || incidents.length === 0) {
     return (
-      <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-6 text-center text-xs text-slate-400">
-        🎉 No incidents recorded! This monitor has been stable.
+      <div className="bg-[#161B22] border border-[#262C36] rounded-md p-5 text-xs text-[#8B94A3]">
+        No incidents recorded. Target endpoint has maintained stability.
       </div>
     );
   }
@@ -18,55 +18,41 @@ const IncidentTimeline = ({ incidents = [] }) => {
   };
 
   return (
-    <div className="bg-slate-800 border border-slate-700/70 rounded-xl overflow-hidden shadow-lg space-y-4 p-5">
-      <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
-        <h3 className="font-semibold text-slate-100 text-sm flex items-center space-x-2">
-          <span>🚨 Incident History</span>
-          <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-normal">
-            {incidents.length}
-          </span>
-        </h3>
+    <div className="bg-[#161B22] border border-[#262C36] rounded-md p-5 space-y-4">
+      <div className="flex items-center justify-between border-b border-[#262C36] pb-3">
+        <h3 className="font-semibold text-sm text-[#E6E8EB]">Incidents</h3>
+        <span className="text-xs font-mono text-[#8B94A3]">{incidents.length} total</span>
       </div>
 
-      <div className="space-y-3">
+      {/* Simple vertical timeline with hairline connector */}
+      <div className="relative pl-6 space-y-5 border-l border-[#262C36] ml-2 my-2">
         {incidents.map((incident) => {
           const isOngoing = incident.status === 'ongoing';
 
           return (
-            <div
-              key={incident._id}
-              className={`p-4 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${
-                isOngoing
-                  ? 'bg-red-500/10 border-red-500/30 text-red-200'
-                  : 'bg-slate-900/60 border-slate-700/60 text-slate-300'
-              }`}
-            >
-              <div className="space-y-1">
-                <div className="flex items-center space-x-2">
-                  {isOngoing ? (
-                    <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-red-500 text-white animate-pulse">
-                      ONGOING INCIDENT
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                      RESOLVED
-                    </span>
-                  )}
-                  <span className="font-medium text-slate-200">{incident.reason}</span>
+            <div key={incident._id} className="relative space-y-1 text-xs">
+              {/* Timeline Indicator Dot */}
+              <span
+                className={`absolute -left-[31px] top-1 w-2.5 h-2.5 rounded-full border-2 border-[#161B22] ${
+                  isOngoing ? 'bg-[#F85149] animate-status-down' : 'bg-[#3FB950]'
+                }`}
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                <div className="font-medium text-[#E6E8EB]">
+                  {incident.reason}
+                  {isOngoing && <span className="ml-2 text-[#F85149] font-mono">(Ongoing)</span>}
                 </div>
-                <div className="text-slate-400 text-[11px]">
-                  Started: {new Date(incident.startedAt).toLocaleString()}
-                  {incident.resolvedAt && (
-                    <span> • Resolved: {new Date(incident.resolvedAt).toLocaleString()}</span>
-                  )}
+                <div className="font-mono text-[#8B94A3] text-right">
+                  Duration: {formatDuration(incident.durationSeconds)}
                 </div>
               </div>
 
-              <div className="text-right flex sm:flex-col justify-between items-center sm:items-end">
-                <span className="text-slate-400">Duration</span>
-                <span className="font-semibold text-slate-200 font-mono">
-                  {formatDuration(incident.durationSeconds)}
-                </span>
+              <div className="font-mono text-[#8B94A3] text-[11px]">
+                Started {new Date(incident.startedAt).toLocaleString()}
+                {incident.resolvedAt && (
+                  <span> — Resolved {new Date(incident.resolvedAt).toLocaleString()}</span>
+                )}
               </div>
             </div>
           );

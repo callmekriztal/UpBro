@@ -20,7 +20,7 @@ const LoginPage = () => {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to sign in');
+      setError(err.response?.data?.message || 'Authentication failed');
     } finally {
       setLoading(false);
     }
@@ -28,43 +28,37 @@ const LoginPage = () => {
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-64px)] px-4">
-      <div className="w-full max-w-md bg-slate-800 border border-slate-700/70 rounded-xl shadow-xl p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">Welcome back</h1>
-          <p className="text-sm text-slate-400">Sign in to manage your API monitors</p>
+      <div className="w-full max-w-sm bg-[#161B22] border border-[#262C36] rounded-md p-6 space-y-5">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold text-[#E6E8EB]">Sign in to UpBro</h1>
+          <p className="text-xs text-[#8B94A3]">Enter your credentials to access the instrument panel.</p>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-2.5 rounded-lg text-center">
+          <div className="bg-[#F85149]/10 border border-[#F85149]/30 text-[#F85149] text-xs px-3 py-2 rounded font-mono">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Email Address
-            </label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#8B94A3]">Email address</label>
             <input
               type="email"
-              placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
-            </label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#8B94A3]">Password</label>
             <input
               type="password"
-              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
               required
             />
           </div>
@@ -72,15 +66,15 @@ const LoginPage = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg transition-colors shadow-sm disabled:opacity-50 mt-2"
+            className="w-full py-2 px-4 bg-[#E8A33D] hover:bg-[#D9942E] text-[#0E1116] font-semibold text-xs rounded transition-colors disabled:opacity-50 mt-2"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? 'Authenticating...' : 'Sign in'}
           </button>
         </form>
 
-        <div className="text-center text-sm text-slate-400 border-t border-slate-700/60 pt-4">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium">
+        <div className="text-xs text-[#8B94A3] border-t border-[#262C36] pt-4">
+          Need an account?{' '}
+          <Link to="/register" className="text-[#E8A33D] hover:underline">
             Register here
           </Link>
         </div>

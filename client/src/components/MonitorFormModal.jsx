@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const MonitorFormModal = ({ isOpen, onClose, onSubmit, initialData = null, title = 'Create New Monitor' }) => {
+const MonitorFormModal = ({ isOpen, onClose, onSubmit, initialData = null, title = 'Add monitor' }) => {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [interval, setInterval] = useState(5);
@@ -38,18 +38,18 @@ const MonitorFormModal = ({ isOpen, onClose, onSubmit, initialData = null, title
     }
 
     if (!url.trim()) {
-      setError('URL is required');
+      setError('Target URL is required');
       return;
     }
 
     try {
       const parsedUrl = new URL(url);
       if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-        setError('URL must start with http:// or https://');
+        setError('URL must use http:// or https:// protocol');
         return;
       }
     } catch (e) {
-      setError('Please provide a valid URL (e.g. https://api.example.com/health)');
+      setError('Enter a valid URL (e.g. https://api.example.com/health)');
       return;
     }
 
@@ -65,118 +65,108 @@ const MonitorFormModal = ({ isOpen, onClose, onSubmit, initialData = null, title
       });
       onClose();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to save monitor');
+      setError(err.response?.data?.message || 'Failed to save monitor configuration');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-      <div className="bg-slate-800 border border-slate-700/80 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-700/60 bg-slate-800/90">
-          <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0E1116]/80 backdrop-blur-xs">
+      <div className="bg-[#161B22] border border-[#262C36] rounded-md shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="flex justify-between items-center px-5 py-3.5 border-b border-[#262C36]">
+          <h3 className="text-sm font-semibold text-[#E6E8EB]">{title}</h3>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 transition-colors text-xl font-bold"
+            className="text-[#8B94A3] hover:text-[#E6E8EB] transition-colors text-lg"
           >
             &times;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-2.5 rounded-lg">
+            <div className="bg-[#F85149]/10 border border-[#F85149]/30 text-[#F85149] text-xs px-3 py-2 rounded font-mono">
               {error}
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Monitor Name
-            </label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#8B94A3]">Monitor name</label>
             <input
               type="text"
-              placeholder="e.g. Auth Service API"
+              placeholder="Auth Service API"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs focus:outline-none focus:border-[#E8A33D]"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Endpoint URL
-            </label>
+          <div className="space-y-1">
+            <label className="block text-xs text-[#8B94A3]">Target URL</label>
             <input
               type="url"
               placeholder="https://api.example.com/health"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-sm"
+              className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
               required
             />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Interval (mins)
-              </label>
+            <div className="space-y-1">
+              <label className="block text-xs text-[#8B94A3]">Interval (mins)</label>
               <input
                 type="number"
                 min="1"
                 value={interval}
                 onChange={(e) => setInterval(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500 text-sm"
+                className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Timeout (ms)
-              </label>
+            <div className="space-y-1">
+              <label className="block text-xs text-[#8B94A3]">Timeout (ms)</label>
               <input
                 type="number"
                 min="500"
                 step="500"
                 value={timeout}
                 onChange={(e) => setTimeout(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500 text-sm"
+                className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
                 required
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Expected Status
-              </label>
+            <div className="space-y-1">
+              <label className="block text-xs text-[#8B94A3]">Status code</label>
               <input
                 type="number"
                 value={expectedStatus}
                 onChange={(e) => setExpectedStatus(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-100 focus:outline-none focus:border-indigo-500 text-sm"
+                className="w-full px-3 py-1.5 bg-[#0E1116] border border-[#262C36] rounded text-[#E6E8EB] text-xs font-mono focus:outline-none focus:border-[#E8A33D]"
                 required
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-700/60">
+          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-[#262C36]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
+              className="px-3 py-1.5 text-xs text-[#8B94A3] hover:text-[#E6E8EB] transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-sm disabled:opacity-50"
+              className="px-3.5 py-1.5 text-xs font-semibold bg-[#E8A33D] hover:bg-[#D9942E] text-[#0E1116] rounded transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Saving...' : 'Save Monitor'}
+              {submitting ? 'Saving...' : 'Save monitor'}
             </button>
           </div>
         </form>

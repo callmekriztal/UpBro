@@ -16,7 +16,7 @@ const DashboardPage = () => {
       setMonitors(res.data);
       setError('');
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch monitors');
+      setError(err.response?.data?.message || 'Failed to load monitors');
     } finally {
       setLoading(false);
     }
@@ -24,7 +24,6 @@ const DashboardPage = () => {
 
   useEffect(() => {
     fetchMonitors();
-    // Auto refresh dashboard data every 15 seconds to sync with backend scheduler engine
     const interval = setInterval(fetchMonitors, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -45,13 +44,13 @@ const DashboardPage = () => {
       await api.post(endpoint);
       fetchMonitors();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update monitor status');
+      alert(err.response?.data?.message || 'Failed to update monitor state');
     }
   };
 
   const handleDelete = async (e, monitorId) => {
     e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this monitor and all its check history?')) return;
+    if (!window.confirm('Remove this monitor and all associated check records?')) return;
     try {
       await api.delete(`/monitors/${monitorId}`);
       fetchMonitors();
@@ -72,7 +71,7 @@ const DashboardPage = () => {
   };
 
   const formatLastChecked = (dateStr) => {
-    if (!dateStr) return 'Never checked';
+    if (!dateStr) return 'Never';
     const diffSecs = Math.floor((new Date() - new Date(dateStr)) / 1000);
     if (diffSecs < 30) return 'Just now';
     if (diffSecs < 60) return `${diffSecs}s ago`;
@@ -83,141 +82,157 @@ const DashboardPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+      {/* Header Bar */}
+      <div className="flex items-center justify-between border-b border-[#262C36] pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Monitors Dashboard</h1>
-          <p className="text-sm text-slate-400 mt-1">Live overview of background monitor engines</p>
+          <h1 className="text-xl font-semibold text-[#E6E8EB]">Monitors</h1>
+          <p className="text-xs text-[#8B94A3] mt-0.5">Active endpoint health and background check status</p>
         </div>
         <button
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm self-start sm:self-auto"
+          className="px-3.5 py-1.5 bg-[#E8A33D] hover:bg-[#D9942E] text-[#0E1116] font-semibold text-xs rounded transition-colors"
         >
-          <span className="mr-1.5 text-base">+</span> Create Monitor
+          Add monitor
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-lg">
+        <div className="bg-[#F85149]/10 border border-[#F85149]/30 text-[#F85149] text-xs px-4 py-2.5 rounded font-mono">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-          <span className="ml-3">Loading live monitor engine...</span>
+        <div className="py-16 text-center text-xs text-[#8B94A3] font-mono">
+          Loading monitor state...
         </div>
       ) : monitors.length === 0 ? (
-        <div className="text-center py-16 bg-slate-800/40 border border-slate-800 rounded-xl p-8 space-y-4">
-          <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center mx-auto text-2xl text-slate-500">
-            📡
-          </div>
-          <h3 className="text-lg font-medium text-slate-200">No monitors found</h3>
-          <p className="text-sm text-slate-400 max-w-sm mx-auto">
-            You haven't added any endpoints to monitor yet. Create your first monitor to start background ping checks!
+        <div className="bg-[#161B22] border border-[#262C36] rounded-md p-8 text-center space-y-3">
+          <p className="text-sm font-medium text-[#E6E8EB]">No monitors configured yet.</p>
+          <p className="text-xs text-[#8B94A3] max-w-sm mx-auto">
+            Add an HTTP endpoint URL to start automated background uptime checks and latency tracking.
           </p>
           <button
             onClick={openCreateModal}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+            className="px-3.5 py-1.5 bg-[#E8A33D] hover:bg-[#D9942E] text-[#0E1116] font-semibold text-xs rounded transition-colors"
           >
-            Create First Monitor
+            Add monitor
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {monitors.map((monitor) => {
-            const isUp = monitor.currentStatus === 'up';
-            const isDown = monitor.currentStatus === 'down';
+        /* Dense Table Panel */
+        <div className="bg-[#161B22] border border-[#262C36] rounded-md overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-[#161B22] text-[#8B94A3] border-b border-[#262C36] font-medium">
+                <tr>
+                  <th className="w-8 px-4 py-3 text-center"></th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Target URL</th>
+                  <th className="px-4 py-3 text-right">24h Uptime</th>
+                  <th className="px-4 py-3 text-right">Interval</th>
+                  <th className="px-4 py-3 text-right">Last checked</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#262C36]">
+                {monitors.map((monitor) => {
+                  const isUp = monitor.currentStatus === 'up';
+                  const isDown = monitor.currentStatus === 'down';
 
-            return (
-              <div
-                key={monitor._id}
-                className="bg-slate-800 border border-slate-700/70 rounded-xl p-5 hover:border-slate-600 transition-all flex flex-col justify-between shadow-lg hover:shadow-indigo-500/5 group"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-slate-100 group-hover:text-indigo-400 transition-colors">
-                        {monitor.name}
-                      </h3>
-                      <p className="text-xs text-slate-400 truncate max-w-[200px] mt-0.5" title={monitor.url}>
+                  return (
+                    <tr
+                      key={monitor._id}
+                      className="hover:bg-[#1C222B] transition-colors group"
+                    >
+                      {/* Status indicator dot */}
+                      <td className="px-4 py-3.5 text-center">
+                        {!monitor.isActive ? (
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-[#8B94A3]"
+                            title="Paused"
+                          />
+                        ) : isUp ? (
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-[#3FB950]"
+                            title="Online"
+                          />
+                        ) : isDown ? (
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-[#F85149] animate-status-down"
+                            title="Down"
+                          />
+                        ) : (
+                          <span
+                            className="inline-block w-2.5 h-2.5 rounded-full bg-[#8B94A3]"
+                            title="Pending initial check"
+                          />
+                        )}
+                      </td>
+
+                      {/* Name */}
+                      <td className="px-4 py-3.5 font-semibold text-[#E6E8EB]">
+                        <Link
+                          to={`/monitors/${monitor._id}`}
+                          className="hover:text-[#E8A33D] transition-colors"
+                        >
+                          {monitor.name}
+                        </Link>
+                      </td>
+
+                      {/* URL (mono, muted) */}
+                      <td className="px-4 py-3.5 font-mono text-[#8B94A3] max-w-xs truncate" title={monitor.url}>
                         {monitor.url}
-                      </p>
-                    </div>
+                      </td>
 
-                    {/* Status Badge */}
-                    {!monitor.isActive ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-700 text-slate-400">
-                        PAUSED
-                      </span>
-                    ) : isUp ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center space-x-1">
-                        <span className="animate-pulse">●</span> <span>ONLINE</span>
-                      </span>
-                    ) : isDown ? (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/30 flex items-center space-x-1">
-                        <span className="animate-pulse">●</span> <span>DOWN</span>
-                      </span>
-                    ) : (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                        PENDING
-                      </span>
-                    )}
-                  </div>
+                      {/* Uptime % (mono) */}
+                      <td className="px-4 py-3.5 text-right font-mono text-[#E6E8EB]">
+                        {monitor.uptimePercentage !== null ? `${monitor.uptimePercentage}%` : '—'}
+                      </td>
 
-                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-700/50 text-xs">
-                    <div>
-                      <span className="text-slate-400 block">Uptime</span>
-                      <span className="text-slate-200 font-semibold">
-                        {monitor.uptimePercentage !== null ? `${monitor.uptimePercentage}%` : 'N/A'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">Interval</span>
-                      <span className="text-slate-200 font-semibold">{monitor.interval} min</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block">Last Check</span>
-                      <span className="text-slate-200 font-semibold truncate block">
+                      {/* Interval (mono) */}
+                      <td className="px-4 py-3.5 text-right font-mono text-[#8B94A3]">
+                        {monitor.interval}m
+                      </td>
+
+                      {/* Last checked (mono, muted) */}
+                      <td className="px-4 py-3.5 text-right font-mono text-[#8B94A3]">
                         {formatLastChecked(monitor.lastCheckedAt)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                      </td>
 
-                <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-700/60 text-xs">
-                  <Link
-                    to={`/monitors/${monitor._id}`}
-                    className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
-                  >
-                    View Details & Incidents →
-                  </Link>
-
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={(e) => handleTogglePause(e, monitor)}
-                      className="px-2 py-1 bg-slate-700/70 hover:bg-slate-700 text-slate-300 rounded transition-colors"
-                      title={monitor.isActive ? 'Pause monitoring' : 'Resume monitoring'}
-                    >
-                      {monitor.isActive ? 'Pause' : 'Resume'}
-                    </button>
-                    <button
-                      onClick={(e) => openEditModal(e, monitor)}
-                      className="px-2 py-1 bg-slate-700/70 hover:bg-slate-700 text-slate-300 rounded transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(e, monitor._id)}
-                      className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                      {/* Actions */}
+                      <td className="px-4 py-3.5 text-right space-x-3">
+                        <Link
+                          to={`/monitors/${monitor._id}`}
+                          className="text-[#8B94A3] hover:text-[#E6E8EB] transition-colors"
+                        >
+                          View
+                        </Link>
+                        <button
+                          onClick={(e) => handleTogglePause(e, monitor)}
+                          className="text-[#8B94A3] hover:text-[#E6E8EB] transition-colors"
+                        >
+                          {monitor.isActive ? 'Pause' : 'Resume'}
+                        </button>
+                        <button
+                          onClick={(e) => openEditModal(e, monitor)}
+                          className="text-[#8B94A3] hover:text-[#E6E8EB] transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => handleDelete(e, monitor._id)}
+                          className="text-[#F85149] hover:underline transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -226,7 +241,7 @@ const DashboardPage = () => {
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateOrUpdate}
         initialData={editingMonitor}
-        title={editingMonitor ? 'Edit Monitor' : 'Create New Monitor'}
+        title={editingMonitor ? 'Edit monitor settings' : 'Add monitor'}
       />
     </div>
   );

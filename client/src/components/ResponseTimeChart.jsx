@@ -1,26 +1,24 @@
 import React from 'react';
 
 /**
- * Lightweight SVG Response Time Trend Chart Component
+ * Precision Monospaced Response Time SVG Chart
  */
 const ResponseTimeChart = ({ checks = [] }) => {
   if (!checks || checks.length === 0) {
     return (
-      <div className="h-40 flex items-center justify-center text-xs text-slate-500 bg-slate-900/40 rounded-lg border border-slate-800">
-        No check data available for response time trend.
+      <div className="h-32 flex items-center justify-center text-xs font-mono text-[#8B94A3] bg-[#161B22] border border-[#262C36] rounded-md">
+        No response time data collected yet.
       </div>
     );
   }
 
-  // Sort checks chronologically (oldest first for line chart from left to right)
   const sortedChecks = [...checks].sort((a, b) => new Date(a.checkedAt) - new Date(b.checkedAt)).slice(-30);
-
   const times = sortedChecks.map((c) => c.responseTime || 0);
   const maxTime = Math.max(...times, 100);
   const minTime = Math.min(...times, 0);
 
   const svgWidth = 600;
-  const svgHeight = 150;
+  const svgHeight = 140;
   const padding = 20;
 
   const points = sortedChecks.map((check, index) => {
@@ -34,21 +32,21 @@ const ResponseTimeChart = ({ checks = [] }) => {
     : points.reduce((acc, point, index) => `${acc} ${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`, '');
 
   return (
-    <div className="bg-slate-900/60 border border-slate-700/60 rounded-xl p-4 space-y-2">
-      <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
-        <span>Response Time Trend (Last {sortedChecks.length} checks)</span>
-        <span className="text-slate-400 font-mono">Max: {maxTime}ms</span>
+    <div className="bg-[#161B22] border border-[#262C36] rounded-md p-4 space-y-3">
+      <div className="flex items-center justify-between text-xs font-mono">
+        <span className="text-[#E6E8EB] font-medium">Response time (ms)</span>
+        <span className="text-[#8B94A3]">Max: {maxTime}ms</span>
       </div>
 
       <div className="w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-36 overflow-visible">
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="w-full h-32 overflow-visible">
           {/* Grid lines */}
-          <line x1={padding} y1={padding} x2={svgWidth - padding} y2={padding} stroke="#334155" strokeDasharray="3 3" />
-          <line x1={padding} y1={svgHeight / 2} x2={svgWidth - padding} y2={svgHeight / 2} stroke="#334155" strokeDasharray="3 3" />
-          <line x1={padding} y1={svgHeight - padding} x2={svgWidth - padding} y2={svgHeight - padding} stroke="#334155" />
+          <line x1={padding} y1={padding} x2={svgWidth - padding} y2={padding} stroke="#262C36" strokeDasharray="3 3" />
+          <line x1={padding} y1={svgHeight / 2} x2={svgWidth - padding} y2={svgHeight / 2} stroke="#262C36" strokeDasharray="3 3" />
+          <line x1={padding} y1={svgHeight - padding} x2={svgWidth - padding} y2={svgHeight - padding} stroke="#262C36" />
 
           {/* Trend line */}
-          <path d={pathD} fill="none" stroke="#6366f1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="#E8A33D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
 
           {/* Data points */}
           {points.map((pt, i) => (
@@ -56,8 +54,10 @@ const ResponseTimeChart = ({ checks = [] }) => {
               key={i}
               cx={pt.x}
               cy={pt.y}
-              r="4"
-              className={pt.success ? 'fill-emerald-400 stroke-slate-900 stroke-2' : 'fill-red-500 stroke-slate-900 stroke-2'}
+              r="3.5"
+              fill={pt.success ? '#3FB950' : '#F85149'}
+              stroke="#0E1116"
+              strokeWidth="1.5"
             >
               <title>{`${pt.responseTime}ms - ${new Date(pt.date).toLocaleTimeString()}`}</title>
             </circle>
