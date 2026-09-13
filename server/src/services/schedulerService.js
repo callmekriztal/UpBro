@@ -1,7 +1,37 @@
 const Monitor = require('../models/Monitor');
+const Check = require('../models/Check');
 const { enqueueMonitorPing } = require('../queue/producerService');
 
 let schedulerTimer = null;
+
+/**
+ * Detect if system was shut down / restarted by checking time elapsed since last check.
+ */
+const detectSystemDowntimeGap = async () => {
+  try {
+    const latestCheck = await Check.findOne().sort({ checkedAt: -1 });
+    if (!latestCheck) return;
+
+    const minMonitor = await Monitor.findOne({ isActive: true }).sort({ interval: 1 });
+    const minIntervalMinutes = minMonitor ? minMonitor.interval : 1;
+    const thresholdMs = minIntervalMinutes * 2 * 60 * 1000;
+
+    const elapsedMs = Date.now() - new Date(latestCheck.checkedAt).getTime();
+
+    // IMPORTANT: System downtime (e.g. laptop restart, server reboot, container restart) must NOT generate target Incidents.
+    // Target websites were not necessarily experiencing an outage while our monitoring system was powered off.
+    // Creating false incidents during monitoring gaps corrupts telemetry and SLA reporting.
+    if (elapsedMs > thresholdMs) {
+      const minutesGap = Math.round(elapsedMs / 60000);
+      const hoursGap = (elapsedMs / (1000 * 60 * 60)).toFixed(1);
+      console.log(
+        `[System Lifecycle] ⚠️ Resuming after system downtime — last check was at ${new Date(latestCheck.checkedAt).toISOString()} (~${hoursGap}h / ${minutesGap}m ago). Monitoring gap NOT recorded as target outage.`
+      );
+    }
+  } catch (err) {
+    console.error('[System Lifecycle Check Error]:', err.message);
+  }
+};
 
 /**
  * Core Producer Scheduler Loop
@@ -47,8 +77,10 @@ const startScheduler = (tickIntervalMs = 15000) => {
 
   console.log(`[Producer] Started. Polling for due monitors every ${tickIntervalMs / 1000}s...`);
 
-  // Run immediately on boot
-  checkDueMonitors().catch((err) => console.error('[Producer Boot Error]:', err));
+  // Detect downtime gap & run immediately on boot
+  detectSystemDowntimeGap()
+    .then(() => checkDueMonitors())
+    .catch((err) => console.error('[Producer Boot Error]:', err));
 
   // Set periodic timer
   schedulerTimer = setInterval(() => {
@@ -67,5 +99,7 @@ const stopScheduler = () => {
 module.exports = {
   checkDueMonitors,
   startScheduler,
-  stopScheduler
+  stopScheduler,
+  detectSystemDowntimeGap
 };
+

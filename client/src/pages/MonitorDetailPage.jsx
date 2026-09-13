@@ -189,6 +189,19 @@ const MonitorDetailPage = () => {
         </div>
       </div>
 
+      {/* System Downtime Resumed Quiet Notice */}
+      {stats?.systemDowntimeGap && (
+        <div className="bg-[#161B22] border border-[#262C36] text-[#8B94A3] text-xs px-4 py-2.5 rounded-md flex items-center justify-between font-mono">
+          <div className="flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-[#E8A33D]" />
+            <span>
+              [System Note] Monitoring resumed after reboot/pause (Last check: {new Date(stats.systemDowntimeGap.lastCheckedAt).toLocaleTimeString()})
+            </span>
+          </div>
+          <span className="text-[11px] text-[#8B94A3]/80 hidden sm:inline">Monitoring gap not logged as target outage</span>
+        </div>
+      )}
+
       {/* Local Endpoint Simulator Helper (If endpoint points to local test URL) */}
       {monitor.url.includes('/api/test-endpoint/ping') && (
         <div className="bg-[#161B22] border border-[#262C36] rounded-md p-4 space-y-2 text-xs">

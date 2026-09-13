@@ -220,6 +220,19 @@ const getMonitorStats = async (req, res, next) => {
 
     const uptimePercentage = totalChecks > 0 ? Number(((successfulChecks / totalChecks) * 100).toFixed(2)) : 100;
 
+    let systemDowntimeGap = null;
+    const latestCheck = await Check.findOne({ monitorId: id }).sort({ checkedAt: -1 });
+    if (latestCheck) {
+      const gapMs = Date.now() - new Date(latestCheck.checkedAt).getTime();
+      const intervalMs = monitor.interval * 60 * 1000;
+      if (gapMs > intervalMs * 2) {
+        systemDowntimeGap = {
+          lastCheckedAt: latestCheck.checkedAt,
+          gapMinutes: Math.round(gapMs / 60000)
+        };
+      }
+    }
+
     res.json({
       uptimePercentage,
       avgResponseTime,
@@ -227,7 +240,8 @@ const getMonitorStats = async (req, res, next) => {
       successfulChecks,
       failedChecks: totalChecks - successfulChecks,
       currentStatus: monitor.currentStatus,
-      lastCheckedAt: monitor.lastCheckedAt
+      lastCheckedAt: monitor.lastCheckedAt,
+      systemDowntimeGap
     });
   } catch (error) {
     next(error);

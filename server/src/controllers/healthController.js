@@ -13,16 +13,32 @@ const pingQueue = require('../queue/pingQueue');
 const getHealth = async (req, res) => {
   const isMongoConnected = mongoose.connection.readyState === 1;
   let isRedisConnected = false;
+  let isWorkerHealthy = false;
 
   try {
     const client = await pingQueue.client;
     const redisPing = await client.ping();
     isRedisConnected = redisPing === 'PONG';
+
+    if (isRedisConnected) {
+      const heartbeatRaw = await client.get('upbro:worker:heartbeat');
+      if (heartbeatRaw) {
+        try {
+          const parsed = JSON.parse(heartbeatRaw);
+          if (parsed && parsed.status === 'healthy') {
+            isWorkerHealthy = true;
+          }
+        } catch (e) {
+          isWorkerHealthy = false;
+        }
+      }
+    }
   } catch (e) {
     isRedisConnected = false;
+    isWorkerHealthy = false;
   }
 
-  const isHealthy = isMongoConnected && isRedisConnected;
+  const isHealthy = isMongoConnected && isRedisConnected && isWorkerHealthy;
   const statusCode = isHealthy ? 200 : 503;
 
   res.status(statusCode).json({
@@ -30,7 +46,8 @@ const getHealth = async (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       mongodb: isMongoConnected ? 'connected' : 'disconnected',
-      redis: isRedisConnected ? 'connected' : 'disconnected'
+      redis: isRedisConnected ? 'connected' : 'disconnected',
+      worker: isWorkerHealthy ? 'healthy' : 'down'
     }
   });
 };
