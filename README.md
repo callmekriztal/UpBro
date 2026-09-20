@@ -1,220 +1,84 @@
 # UpBro
 
-UpBro is an open-source API and website health monitoring system built on the MERN stack with a queue-based monitoring engine. You register HTTP endpoints, configure check intervals and expected status codes, and UpBro automatically pings targets in the background. It records round-trip latency, computes rolling 24-hour uptime metrics, detects outages, logs ongoing and resolved incidents, and displays real-time health data on an engineering instrument dashboard.
+UpBro is a self-hosted uptime monitor for websites and APIs. You add HTTP endpoints with check intervals and expected status codes, and a background worker periodically pings them, records response latency, and logs downtime incidents when a target goes down.
 
----
+## Setup
 
-## Architecture at a Glance
+### Prerequisites
+- Docker and Docker Compose
 
-The system is split into two independent concerns: **Serving the Web Application / API** and **Executing Background Health Checks**.
-
-```mermaid
-flowchart TD
-    subgraph Frontend ["React SPA (Port 3000)"]
-        UI["Vite + React Router + Tailwind"]
-    end
-
-    subgraph API_Layer ["API Server (Express — Port 5000)"]
-        API["Express API Routes"]
-        Producer["Job Producer (15s Polling Tick)"]
-    end
-
-    subgraph Data_Layer ["Data & Message Infrastructure"]
-        MongoDB[(MongoDB 7.0)]
-        Redis[(Redis / BullMQ Queue)]
-    end
-
-    subgraph Worker_Layer ["Worker Process (Standalone Node Engine)"]
-        Worker["BullMQ Worker (Concurrency: 10)"]
-    end
-
-    subgraph External ["Target Endpoints"]
-        Target["External API / Website URL"]
-    end
-
-    UI <-->|HTTP REST / JSON| API
-    API <--> MongoDB
-    Producer -->|Query Active Monitors| MongoDB
-    Producer -->|Enqueue Job with JobID| Redis
-    Worker -->|Consume & Lock Job| Redis
-    Worker -->|HTTP GET Request| Target
-    Worker -->|Record Checks & Incidents| MongoDB
-```
-
----
-
-## Tech Stack
-
-| Layer | Technology | Reason |
-| :--- | :--- | :--- |
-| **Frontend** | React 18, Vite, Tailwind CSS | Fast SPA rendering, component modularity, and zero-runtime CSS utilities. |
-| **HTTP Client** | Axios | Interceptors for automatic JWT Bearer header injection and request timeouts. |
-| **Backend API** | Node.js, Express | Non-blocking event loop for handling REST endpoints and rate-limiting middleware. |
-| **Database** | MongoDB, Mongoose 8 | Document store for monitor configs, check logs, and time-stamped incidents. |
-| **Message Queue** | Redis 7, BullMQ 6 | In-memory atomic queue providing job reservation, concurrency locks, and retries. |
-| **Testing & Logging**| Jest, Supertest, Pino | Integration test suite and structured JSON logging with `X-Request-ID` correlation. |
-| **Containers** | Docker, Nginx, Docker Compose | Orchestration for API, worker, database, Redis, and static Nginx SPA server. |
-
----
-
-## How a Check Works
-
-1. **Producer Tick:** Every 15 seconds, the job producer in the API server queries MongoDB for active monitors whose elapsed time since `lastCheckedAt` meets or exceeds their configured `interval`.
-2. **Deduplicated Enqueue:** For each due monitor, the producer pushes a job to the Redis BullMQ queue (`ping-checks-queue`).
-3. **Worker Pickup:** A standalone worker process claims the job using Redis atomic locks, respecting a `concurrency` setting of 10 parallel HTTP checks.
-4. **HTTP Execution:** The worker issues an HTTP `GET` request to the target URL using Axios, enforcing the monitor's `timeout` limit.
-5. **Success / Failure Evaluation:** If a response arrives within the timeout and matches `expectedStatus` (e.g., 200), the check succeeds. If a status mismatch, network error (`ECONNREFUSED`), or timeout occurs, the check fails.
-6. **Data Persistence & Incident Tracking:** A `Check` document is saved in MongoDB recording status code, response time, and timestamp. If the check fails 2 consecutive times, an `Incident` is created (`status: "ongoing"`). When the check succeeds again, any active `Incident` is marked `status: "resolved"`.
-
----
-
-## Getting Started
-
-### Primary Path: Docker Compose
-
-**Prerequisites:** Docker & Docker Compose installed.
+### Running with Docker Compose
+The easiest way to run the full stack (API server, background worker, React frontend, MongoDB, and Redis) is with Docker Compose:
 
 ```bash
-# Clone the repository
 git clone https://github.com/callmekriztal/UpBro.git
 cd UpBro
-
-# Build and start all 5 containers (API, Worker, Client, MongoDB, Redis)
 docker-compose up --build
 ```
 
-Access the application:
-- **Client Dashboard:** `http://localhost:3000`
-- **API Server:** `http://localhost:5000`
-- **Health Check:** `http://localhost:5000/health`
-- **Metrics JSON:** `http://localhost:5000/metrics`
+Once running:
+- Frontend: http://localhost:3000
+- API: http://localhost:5000
+- Health Check: http://localhost:5000/health
 
-### Environment Variables
+### Local Setup (Without Docker)
+If you prefer running services directly:
 
-For manual setup, copy `server/.env.example` to `server/.env` and fill in your local settings:
-- `PORT`: HTTP port for the Express API server.
-- `MONGO_URI`: MongoDB connection string.
-- `REDIS_HOST`: Redis server hostname.
-- `REDIS_PORT`: Redis server port.
-- `WORKER_CONCURRENCY`: Max parallel HTTP checks per worker process.
-- `JWT_SECRET`: Secret key used to sign and verify authentication tokens.
-
-<details>
-<summary>Manual Local Setup (Without Docker)</summary>
-
-#### Prerequisites
-- Node.js v18+ and npm
-- MongoDB running on `localhost:27017`
-- Redis running on `localhost:6379`
-
-#### Steps
-
-1. **Start Database & Redis Daemons:**
-   ```bash
-   mongod --dbpath ./data --fork --logpath ./mongodb.log
-   redis-server --daemonize yes
-   ```
-
-2. **Start Backend API & Worker Process:**
+1. Start local instances of MongoDB (port 27017) and Redis (port 6379).
+2. Copy `server/.env.example` to `server/.env` and adjust settings if needed:
+   - `PORT`: API server port (default 5000)
+   - `MONGO_URI`: MongoDB connection string (`mongodb://localhost:27017/uptime_monitor`)
+   - `REDIS_HOST`: Redis host (`127.0.0.1`)
+   - `REDIS_PORT`: Redis port (`6379`)
+   - `WORKER_CONCURRENCY`: Max parallel check jobs per worker (default 10)
+   - `JWT_SECRET`: Secret key for JWT signing
+3. Install dependencies and start the API server and worker:
    ```bash
    cd server
    npm install
    npm run dev
    ```
-
-3. **Start React Frontend:**
+4. In another terminal, install dependencies and start the React client:
    ```bash
    cd client
    npm install
    npm run dev
    ```
-</details>
-
----
 
 ## Project Structure
 
 ```
 UpBro/
-├── client/              # React SPA frontend (Vite, Tailwind, Nginx container)
-├── server/              # Backend server & worker codebase
-│   ├── __tests__/       # Jest + Supertest integration test suite
+├── client/              # React frontend (Vite, Tailwind CSS)
+├── server/              # Express API server and BullMQ worker
+│   ├── __tests__/       # Integration tests (Jest, Supertest)
 │   └── src/
-│       ├── config/      # Database, Redis, and logger configurations
-│       ├── controllers/ # Auth, Monitor CRUD, Incident, and Health/Metrics handlers
-│       ├── middleware/  # JWT auth, rate limiting, request ID tracing, error handling
+│       ├── config/      # DB, Redis, and logger configurations
+│       ├── controllers/ # Route handlers for auth, monitors, checks, incidents
+│       ├── middleware/  # JWT auth, rate limiting, error handling
 │       ├── models/      # Mongoose schemas (User, Monitor, Check, Incident)
-│       ├── queue/       # BullMQ Queue instance & Producer deduplication service
-│       ├── routes/      # Express REST API routes
-│       ├── services/    # Worker ping execution & NotificationService abstraction
-│       └── worker.js    # Standalone Worker process entry point
-└── docker-compose.yml   # Multi-container orchestration specification
+│       ├── queue/       # BullMQ queue setup and job producer
+│       ├── routes/      # Express API routes
+│       ├── services/    # HTTP check execution and notification handlers
+│       └── worker.js    # Standalone background worker process
+└── docker-compose.yml   # Docker Compose setup for all services
 ```
 
----
+## Models
 
-## API Reference
+- **User**: Stores user credentials (`name`, `email`, `password` hash). Used to scope monitors and check data to the account that created them.
+- **Monitor**: Represents an endpoint to check. Stores target `url`, HTTP `method`, `interval` (minutes), `timeout` (ms), `expectedStatus` (e.g. 200), and `isActive` toggle.
+- **Check**: Log of a single check execution performed by the worker. Stores `monitorId`, `statusCode`, `responseTime` in ms, `success` boolean, `errorMessage`, and `checkedAt` timestamp.
+- **Incident**: Tracks downtime periods for a monitor. Created when a monitor fails 2 consecutive checks (`ongoing`), and updated with a `resolvedAt` timestamp and duration when checks pass again (`resolved`).
 
-### Auth (`/api/auth`)
+## Auth, Permissions, and Background Queue
 
-| Method | Path | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | No | Creates a new user account (returns JWT token). |
-| `POST` | `/api/auth/login` | No | Authenticates email/password (returns JWT token). |
-| `POST` | `/api/auth/logout` | Yes | Clears active client session. |
+### Auth & Permissions
+Authentication is handled via JSON Web Tokens (JWT). Upon registering or logging in (`POST /api/auth/register` or `POST /api/auth/login`), the server returns a token. Clients pass this token in the `Authorization: Bearer <token>` header on protected endpoints (`/api/monitors/*`). An authentication middleware decodes the token, extracts `userId`, and ensures queries only return or modify monitors owned by that user.
 
-### Monitors (`/api/monitors`)
-
-| Method | Path | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/monitors` | Yes | Lists user's monitors with latest check status. |
-| `POST` | `/api/monitors` | Yes | Creates a new monitor configuration. |
-| `GET` | `/api/monitors/:id` | Yes | Fetches single monitor configuration by ID. |
-| `PATCH` | `/api/monitors/:id` | Yes | Updates monitor settings. |
-| `DELETE` | `/api/monitors/:id` | Yes | Deletes monitor and associated records. |
-| `POST` | `/api/monitors/:id/pause` | Yes | Pauses background checks (`isActive: false`). |
-| `POST` | `/api/monitors/:id/resume` | Yes | Resumes background checks (`isActive: true`). |
-
-### Stats, Incidents & Checks (`/api/monitors/:id/*`)
-
-| Method | Path | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/monitors/:id/stats` | Yes | Returns aggregated 24h metrics (uptime %, avg latency, total checks). |
-| `GET` | `/api/monitors/:id/incidents` | Yes | Fetches historical ongoing and resolved incidents. |
-| `GET` | `/api/monitors/:id/checks` | Yes | Fetches raw check logs sorted by timestamp. |
-
-### System & Observability
-
-| Method | Path | Auth Required | Description |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | No | Liveness probe returning HTTP 200/503 for MongoDB and Redis status. |
-| `GET` | `/metrics` | No | System counters payload (monitors, 24h checks, queue depth). |
-
----
-
-## Notable Design Decisions
-
-- **Queue Process Separation:** Health checks are executed by a dedicated worker process (`src/worker.js`) rather than inside the Express API server, ensuring web routes stay responsive under high check volume.
-- **Deterministic Job ID Deduplication:** Producer job IDs are hashed as `ping-MONITORID-TIMEBUCKET`. Redis ignores duplicate `queue.add()` calls within the same interval window, preventing duplicate checks during server restarts or overlapping producer ticks.
-- **Flapping Mitigation:** Incidents require **2 consecutive failed checks** before opening an outage record, preventing false alarms from temporary network hiccups.
-- **Transient vs. Domain Error Classification:** If a target site returns HTTP 500, it is saved as a failed `Check` document without retrying. If a worker infrastructure error occurs (e.g., local DNS timeout), BullMQ executes **exponential backoff retries** (3 attempts).
-- **Decoupled Notification Architecture:** Alert and recovery notifications pass through a `NotificationService` abstraction, keeping incident logic decoupled from third-party email or Slack API providers.
-- **Graceful Shutdown:** The worker process intercepts `SIGTERM` and `SIGINT`, executing `worker.close()` to allow in-flight HTTP requests to finish cleanly before exiting.
-
----
-
-## Known Limitations
-
-- **Single Redis Instance:** Uses a single Redis host without Sentinel or Redis Cluster failover.
-- **Local Dev Notifications:** The `NotificationService` formats and logs alerts to stdout console. Connecting email providers (SendGrid/Resend) or Slack webhooks requires configuring production API keys.
-- **Producer Polling Jitter:** The job producer runs on an in-memory 15-second `setInterval` loop. Depending on tick timing, a 1-minute interval monitor executes checks every ~60 to 75 seconds rather than exact millisecond precision.
-- **Single Worker Default:** Tested primarily with a single worker node instance (`concurrency: 10`). Large-scale deployment with multiple distributed worker hosts across regions remains un-tested in this repository.
-
----
-
-## Running Integration Tests
-
-```bash
-cd server
-npm test
-```
+### Background Queue & Messaging System
+To prevent long-running HTTP checks from blocking API server routes, health checks are decoupled into a background queue using Redis and BullMQ:
+- **Producer:** Every 15 seconds, a scheduler loop in the API process queries MongoDB for active monitors due for a check. It enqueues check jobs into Redis (`ping-checks-queue`) using a deterministic job ID (`ping-<monitorId>-<timeBucket>`) to prevent duplicate checks.
+- **Worker:** A separate Node process (`src/worker.js`) consumes jobs from Redis, executes the HTTP requests with Axios, records the `Check` log, and updates `Incident` state in MongoDB. If a network error occurs, BullMQ retries up to 3 times with exponential backoff before marking the job failed.
+- **Worker Heartbeat:** The worker writes a periodic heartbeat key to Redis every 10 seconds. The `/health` endpoint checks MongoDB, Redis, and this heartbeat key, returning `503 Service Unavailable` if the worker process stops.
+- **Notifications:** When an incident opens or resolves, alert details pass through a `NotificationService` module that formats notifications to stdout or external alert channels.
